@@ -1,0 +1,21 @@
+Employee ID,Name,Level,Gender,Off Day 1,Off Day 2
+EMP-001,Aarav Mehta,Senior,Male,Monday,Tuesday
+EMP-002,Diya Sharma,Senior,Female,Tuesday,Wednesday
+EMP-003,Vihaan Patel,Senior,Male,Wednesday,Thursday
+EMP-004,Ananya Rao,Senior,Female,Thursday,Friday
+EMP-005,Arjun Nair,Senior,Male,Friday,Saturday
+EMP-006,Isha Verma,Senior,Female,Saturday,Sunday
+EMP-007,Rohan Gupta,Senior,Male,Sunday,Monday
+EMP-008,Kavya Singh,Senior,Female,Monday,Tuesday
+EMP-009,Aditya Joshi,Senior,Male,Tuesday,Wednesday
+EMP-010,Meera Iyer,Senior,Female,Wednesday,Thursday
+EMP-011,Kabir Das,Senior,Male,Thursday,Friday
+EMP-012,Saanvi Kapoor,Senior,Female,Friday,Saturday
+EMP-013,Rahul Menon,Senior,Male,Saturday,Sunday
+EMP-014,Nisha Jain,Junior,Female,Sunday,Monday
+EMP-015,Dev Shah,Junior,Male,Monday,Tuesday
+EMP-016,Priya Bose,Junior,Female,Tuesday,Wednesday
+EMP-017,Neel Kumar,Junior,Male,Wednesday,Thursday
+EMP-018,Tara Reddy,Junior,Female,Thursday,Friday
+EMP-019,Manav Kulkarni,Junior,Male,Friday,Saturday
+EMP-020,Riya Chawla,Junior,Female,Saturday,Sunday

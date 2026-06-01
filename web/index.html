@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shiftwise | Workforce Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/">
+          <span class="brand-mark">S</span>
+          <span>Shiftwise</span>
+        </a>
+        <nav>
+          <a class="nav-item active" href="#schedule"><span>01</span> Schedule</a>
+          <a class="nav-item" href="#team"><span>02</span> Team summary</a>
+          <a class="nav-item" href="#rules"><span>03</span> Rules</a>
+        </nav>
+        <div class="sidebar-note">
+          <p>Planning mode</p>
+          <strong>Balanced coverage</strong>
+          <span>Every shift has 3+ employees and a senior developer.</span>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">WORKFORCE PLANNER</p>
+            <h1>Build a calmer rota.</h1>
+          </div>
+          <div class="status"><i></i> Local scheduler ready</div>
+        </header>
+
+        <section class="hero-grid">
+          <div class="intro-card">
+            <p class="eyebrow">SMART DISTRIBUTION</p>
+            <h2>Plan every shift.<br /><em>Protect every team.</em></h2>
+            <p>Create a history-aware seven-day roster with permanent monthly shifts, gender-aware Night staffing, and protected rest days.</p>
+            <div class="rule-row" id="rules">
+              <span>2 off-days each week</span>
+              <span>Fixed monthly shifts</span>
+              <span>3+ staff per shift</span>
+              <span>5-day work limit</span>
+              <span>2-month Night cooldown</span>
+            </div>
+          </div>
+
+          <form class="control-card" id="schedule-form">
+            <div class="card-heading">
+              <div>
+                <p class="eyebrow">SCHEDULE SETTINGS</p>
+                <h3>Generate roster</h3>
+              </div>
+              <span class="spark">+</span>
+            </div>
+            <div class="form-grid">
+              <label>Month<input id="month" type="month" required /></label>
+              <label>Employee dataset<input value="20 employees from CSV" disabled /></label>
+            </div>
+            <button class="primary-button" type="submit">
+              <span>Generate schedule</span><b>&rarr;</b>
+            </button>
+            <p class="error-message" id="error-message" role="alert"></p>
+          </form>
+        </section>
+
+        <section class="results hidden" id="results">
+          <div class="results-header">
+            <div>
+              <p class="eyebrow">GENERATED ROSTER</p>
+              <h2 id="month-label">Monthly schedule</h2>
+            </div>
+            <div class="download-row">
+              <a class="secondary-button" id="employees-download" href="/employees.csv">Employee dataset</a>
+              <a class="secondary-button" id="summary-download" href="#">Download summary</a>
+              <a class="primary-button compact" id="schedule-download" href="#">Download roster <b>&darr;</b></a>
+            </div>
+          </div>
+
+          <div class="metrics" id="metrics"></div>
+
+          <div class="section-tabs">
+            <button class="tab active" data-tab="calendar">Calendar view</button>
+            <button class="tab" data-tab="team">Team summary</button>
+          </div>
+
+          <div class="tab-panel" id="calendar-panel">
+            <div class="calendar-grid" id="calendar"></div>
+          </div>
+
+          <div class="tab-panel hidden" id="team-panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>ID</th><th>Employee</th><th>Level</th><th>Gender</th><th>Fixed shift</th><th>Workdays</th><th>Days off</th></tr>
+                </thead>
+                <tbody id="team-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
