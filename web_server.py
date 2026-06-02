@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import json
 import mimetypes
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -36,12 +37,33 @@ def employee_summary(
     schedule: dict[int, dict[str, list[str]]],
     employees: list,
     fixed_shifts: dict[str, str],
+    year: int,
+    month: int,
+    leaves: list[dict] | None = None,
 ) -> list[dict]:
     counts = {employee.employee_id: Counter() for employee in employees}
     for roster in schedule.values():
         for shift, employee_ids in roster.items():
             for employee_id in employee_ids:
                 counts[employee_id][shift] += 1
+
+    leave_days_count = {employee.employee_id: 0 for employee in employees}
+    if leaves:
+        for lv in leaves:
+            if lv and lv.get("employee_id"):
+                emp_id = lv["employee_id"]
+                start_val = lv.get("start_date")
+                end_val = lv.get("end_date")
+                if isinstance(start_val, str):
+                    start_val = date.fromisoformat(start_val)
+                if isinstance(end_val, str):
+                    end_val = date.fromisoformat(end_val)
+                for day in range(1, calendar.monthrange(year, month)[1] + 1):
+                    d = date(year, month, day)
+                    if start_val <= d <= end_val:
+                        if emp_id in leave_days_count:
+                            leave_days_count[emp_id] += 1
+
     return [
         {
             "employeeId": employee.employee_id,
@@ -51,14 +73,38 @@ def employee_summary(
             "fixedShift": fixed_shifts[employee.employee_id],
             "workdays": sum(counts[employee.employee_id].values()),
             "daysOff": len(schedule) - sum(counts[employee.employee_id].values()),
+            "leaveDays": leave_days_count[employee.employee_id],
         }
         for employee in employees
     ]
 
 
 def schedule_rows(
-    schedule: dict[int, dict[str, list[str]]], employees: list, year: int, month: int
+    schedule: dict[int, dict[str, list[str]]],
+    employees: list,
+    year: int,
+    month: int,
+    leaves: list[dict] | None = None,
 ) -> list[dict]:
+    by_id = {employee.employee_id: employee for employee in employees}
+    
+    leaves_by_day = defaultdict(list)
+    if leaves:
+        for lv in leaves:
+            if lv and lv.get("employee_id"):
+                emp_id = lv["employee_id"]
+                emp_name = by_id[emp_id].name if emp_id in by_id else emp_id
+                start_val = lv.get("start_date")
+                end_val = lv.get("end_date")
+                if isinstance(start_val, str):
+                    start_val = date.fromisoformat(start_val)
+                if isinstance(end_val, str):
+                    end_val = date.fromisoformat(end_val)
+                for day in range(1, calendar.monthrange(year, month)[1] + 1):
+                    d = date(year, month, day)
+                    if start_val <= d <= end_val:
+                        leaves_by_day[day].append(emp_name)
+
     rows = []
     for day, roster in schedule.items():
         roster_date = date(year, month, day)
@@ -69,11 +115,16 @@ def schedule_rows(
                 "shifts": [
                     {
                         "name": shift,
-                        "employees": names_for(roster[shift], employees),
+                        "employees": [
+                            {"name": by_id[emp_id].name, "level": by_id[emp_id].level}
+                            for emp_id in roster[shift]
+                            if emp_id in by_id
+                        ],
                         "count": len(roster[shift]),
                     }
                     for shift in SHIFTS
                 ],
+                "onLeave": leaves_by_day[day],
             }
         )
     return rows
@@ -92,9 +143,25 @@ def generate_roster(payload: dict) -> dict:
     month = int_setting(payload, "month", date.today().month, 1, 12)
     seed = int_setting(payload, "seed", 42, 0, 1_000_000)
 
+    leaves_payload = payload.get("leaves", [])
+    single_leave = payload.get("leave")
+    if single_leave:
+        leaves_payload.append(single_leave)
+
+    leaves = []
+    for lv in leaves_payload:
+        if lv and lv.get("employeeId"):
+            leaves.append({
+                "employee_id": lv["employeeId"],
+                "start_date": lv.get("startDate"),
+                "end_date": lv.get("endDate"),
+            })
+
     employees = load_employees(EMPLOYEES_PATH)
     history = load_history(HISTORY_PATH)
-    schedule, fixed_shifts = build_schedule(employees, history, year, month, seed)
+    schedule, fixed_shifts = build_schedule(
+        employees, history, year, month, seed, leaves=leaves
+    )
     save_history(history, employees, fixed_shifts, year, month, HISTORY_PATH)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -118,8 +185,8 @@ def generate_roster(payload: dict) -> dict:
             "operatingDays": len(schedule),
             "assignments": assignments,
         },
-        "schedule": schedule_rows(schedule, employees, year, month),
-        "employees": employee_summary(schedule, employees, fixed_shifts),
+        "schedule": schedule_rows(schedule, employees, year, month, leaves=leaves),
+        "employees": employee_summary(schedule, employees, fixed_shifts, year, month, leaves),
         "downloads": {
             "schedule": f"/downloads/{schedule_name}",
             "summary": f"/downloads/{summary_name}",
@@ -142,6 +209,14 @@ class ShiftManagementHandler(BaseHTTPRequestHandler):
             return
         if path == "/employees.csv":
             self.send_file(EMPLOYEES_PATH, download=True)
+            return
+        if path == "/api/employees":
+            try:
+                employees = load_employees(EMPLOYEES_PATH)
+                emp_list = [{"id": emp.employee_id, "name": emp.name} for emp in employees]
+                self.send_json(emp_list)
+            except Exception as e:
+                self.send_json({"error": str(e)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Page not found")
 

@@ -3,7 +3,103 @@ const monthInput = document.querySelector("#month");
 const results = document.querySelector("#results");
 const errorMessage = document.querySelector("#error-message");
 
+const leavesContainer = document.querySelector("#leaves-container");
+const addLeaveBtn = document.querySelector("#add-leave-btn");
+
+let loadedEmployees = [];
+
 monthInput.value = new Date().toISOString().slice(0, 7);
+
+// Update leave datepicker limits based on selected month
+function updateLeaveDateLimits() {
+  const monthVal = monthInput.value;
+  if (!monthVal) return;
+  const [year, month] = monthVal.split("-");
+  const lastDay = new Date(year, month, 0).getDate();
+  const minDate = `${monthVal}-01`;
+  const maxDate = `${monthVal}-${String(lastDay).padStart(2, '0')}`;
+  
+  document.querySelectorAll(".leave-start-input").forEach(input => {
+    input.min = minDate;
+    input.max = maxDate;
+  });
+  document.querySelectorAll(".leave-end-input").forEach(input => {
+    input.min = minDate;
+    input.max = maxDate;
+  });
+}
+
+monthInput.addEventListener("change", updateLeaveDateLimits);
+
+// Dynamic Leave Row creation
+function createLeaveRow() {
+  const row = document.createElement("div");
+  row.className = "leave-row";
+  
+  const select = document.createElement("select");
+  select.className = "leave-employee-select";
+  select.required = true;
+  
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "Select Employee";
+  select.appendChild(defaultOpt);
+  
+  loadedEmployees.forEach(emp => {
+    const option = document.createElement("option");
+    option.value = emp.id;
+    option.textContent = `${emp.name} (${emp.id})`;
+    select.appendChild(option);
+  });
+  
+  const startDateInput = document.createElement("input");
+  startDateInput.type = "date";
+  startDateInput.className = "leave-start-input";
+  startDateInput.required = true;
+  
+  const endDateInput = document.createElement("input");
+  endDateInput.type = "date";
+  endDateInput.className = "leave-end-input";
+  endDateInput.required = true;
+  
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "remove-leave-btn";
+  removeBtn.innerHTML = "&times;";
+  removeBtn.addEventListener("click", () => {
+    row.remove();
+  });
+  
+  row.appendChild(select);
+  row.appendChild(startDateInput);
+  row.appendChild(endDateInput);
+  row.appendChild(removeBtn);
+  
+  leavesContainer.appendChild(row);
+  
+  // Set date picker limits for new row
+  updateLeaveDateLimits();
+}
+
+addLeaveBtn.addEventListener("click", createLeaveRow);
+
+// Fetch employees list to populate dropdown
+async function fetchEmployees() {
+  try {
+    const response = await fetch("/api/employees");
+    if (!response.ok) throw new Error("Failed to load employees");
+    loadedEmployees = await response.json();
+  } catch (error) {
+    console.error("Error loading employees list:", error);
+  }
+}
+
+// Initial setup
+async function init() {
+  await fetchEmployees();
+  updateLeaveDateLimits();
+}
+init();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -14,6 +110,29 @@ form.addEventListener("submit", async (event) => {
   button.innerHTML = "<span>Generating...</span>";
   const [year, month] = monthInput.value.split("-").map(Number);
 
+  const leaves = [];
+  let validationError = null;
+  document.querySelectorAll(".leave-row").forEach(row => {
+    const empId = row.querySelector(".leave-employee-select").value;
+    const startVal = row.querySelector(".leave-start-input").value;
+    const endVal = row.querySelector(".leave-end-input").value;
+    if (!empId) {
+      validationError = "Please select an employee for all leave rows.";
+    } else if (!startVal || !endVal) {
+      validationError = "Please select both start and end dates for all leaves.";
+    } else if (endVal < startVal) {
+      validationError = "Leave end date cannot be before start date.";
+    }
+    leaves.push({ employeeId: empId, startDate: startVal, endDate: endVal });
+  });
+
+  if (validationError) {
+    errorMessage.textContent = validationError;
+    button.disabled = false;
+    button.innerHTML = originalText;
+    return;
+  }
+
   try {
     const response = await fetch("/api/generate", {
       method: "POST",
@@ -21,6 +140,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         year,
         month,
+        leaves,
       }),
     });
     const data = await response.json();
@@ -63,14 +183,25 @@ function renderCalendar(schedule) {
   document.querySelector("#calendar").innerHTML = schedule
     .map((day) => {
       const shifts = day.shifts
-        .map((shift) => `<div class="shift ${shift.name}">
-          <div class="shift-name">${shift.name}<span>${shift.count} staff</span></div>
-          <div class="names">${shift.employees.join(", ")}</div>
-        </div>`)
+        .map((shift) => {
+          const empHtmlList = shift.employees
+            .map(emp => `<span class="employee-item ${emp.level}">${emp.name}</span>`)
+            .join(", ");
+          return `<div class="shift ${shift.name}">
+            <div class="shift-name">${shift.name}<span>${shift.count} staff</span></div>
+            <div class="names">${empHtmlList}</div>
+          </div>`;
+        })
         .join("");
+
+      const leavesSection = day.onLeave && day.onLeave.length > 0
+        ? `<div class="day-leaves"><span>On Leave:</span> ${day.onLeave.join(", ")}</div>`
+        : "";
+
       return `<article class="day-card">
         <div class="day-heading"><strong>${shortDate(day.date)}</strong><span>${day.day}</span></div>
         ${shifts}
+        ${leavesSection}
       </article>`;
     })
     .join("");
@@ -85,6 +216,7 @@ function renderTeam(employees) {
       <td>${employee.gender}</td>
       <td><span class="badge ${employee.fixedShift}">${employee.fixedShift}</span></td>
       <td>${employee.workdays}</td><td><strong>${employee.daysOff}</strong></td>
+      <td>${employee.leaveDays > 0 ? `<span class="badge leave">${employee.leaveDays} days</span>` : '-'}</td>
     </tr>`)
     .join("");
 }

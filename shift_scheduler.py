@@ -191,7 +191,30 @@ def build_schedule(
     month: int,
     seed: int = 42,
     attempts: int = 3000,
+    leave: dict | None = None,
+    leaves: list[dict] | None = None,
 ) -> tuple[dict[int, dict[str, list[str]]], dict[str, str]]:
+    leave_days = set()
+    all_leaves = []
+    if leaves:
+        all_leaves.extend(leaves)
+    if leave:
+        all_leaves.append(leave)
+
+    for lv in all_leaves:
+        if lv and lv.get("employee_id"):
+            emp_id = lv["employee_id"]
+            start_val = lv.get("start_date")
+            end_val = lv.get("end_date")
+            if isinstance(start_val, str):
+                start_val = date.fromisoformat(start_val)
+            if isinstance(end_val, str):
+                end_val = date.fromisoformat(end_val)
+            for day in range(1, calendar.monthrange(year, month)[1] + 1):
+                d = date(year, month, day)
+                if start_val <= d <= end_val:
+                    leave_days.add((emp_id, day))
+
     for attempt in range(attempts):
         rng = random.Random(seed + attempt)
         fixed_shifts = choose_fixed_shifts(employees, history, year, month, rng)
@@ -203,12 +226,13 @@ def build_schedule(
                     for employee in employees
                     if fixed_shifts[employee.employee_id] == shift
                     and date(year, month, day).weekday() not in weekly_offs[employee.employee_id]
+                    and (employee.employee_id, day) not in leave_days
                 ]
                 for shift in SHIFTS
             }
             for day in range(1, calendar.monthrange(year, month)[1] + 1)
         }
-        if not validate_schedule(schedule, employees, history, year, month, fixed_shifts):
+        if not validate_schedule(schedule, employees, history, year, month, fixed_shifts, leave_days):
             return schedule, fixed_shifts
     raise RuntimeError(
         f"Could not create a valid schedule after {attempts} attempts. "
@@ -223,6 +247,7 @@ def validate_schedule(
     year: int,
     month: int,
     fixed_shifts: dict[str, str],
+    leave_days: set[tuple[str, int]] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     by_id = {employee.employee_id: employee for employee in employees}
@@ -263,11 +288,24 @@ def validate_schedule(
             if streak > 5:
                 errors.append(f"Day {day}: {employee.name} worked more than 5 consecutive days.")
         for week in calendar_weeks(year, month):
+            # Check if this employee has leave on any day in this week
+            has_leave_this_week = False
+            if leave_days:
+                for day in week:
+                    if (employee_id, day) in leave_days:
+                        has_leave_this_week = True
+                        break
+
             expected = sum(
                 day not in worked_days[employee_id] for day in week
             )
-            if len(week) == 7 and expected != 2:
-                errors.append(f"{employee.name}: expected 2 off-days in week of day {week[0]}.")
+            if len(week) == 7:
+                if has_leave_this_week:
+                    if expected < 2:
+                        errors.append(f"{employee.name}: expected at least 2 off-days in week of day {week[0]}.")
+                else:
+                    if expected != 2:
+                        errors.append(f"{employee.name}: expected 2 off-days in week of day {week[0]}.")
     return errors
 
 
@@ -325,6 +363,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--employees-data", type=Path, default=DEFAULT_EMPLOYEES_PATH)
     parser.add_argument("--history-data", type=Path, default=DEFAULT_HISTORY_PATH)
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
+    parser.add_argument("--leave-employee", type=str, default=None, help="Employee ID on leave")
+    parser.add_argument("--leave-start", type=str, default=None, help="Leave start date (YYYY-MM-DD)")
+    parser.add_argument("--leave-end", type=str, default=None, help="Leave end date (YYYY-MM-DD)")
     return parser.parse_args()
 
 
@@ -332,7 +373,18 @@ def main() -> None:
     args = parse_args()
     employees = load_employees(args.employees_data)
     history = load_history(args.history_data)
-    schedule, fixed_shifts = build_schedule(employees, history, args.year, args.month, args.seed)
+    
+    leave = None
+    if args.leave_employee:
+        leave = {
+            "employee_id": args.leave_employee,
+            "start_date": args.leave_start,
+            "end_date": args.leave_end,
+        }
+
+    schedule, fixed_shifts = build_schedule(
+        employees, history, args.year, args.month, args.seed, leave=leave
+    )
     save_history(history, employees, fixed_shifts, args.year, args.month, args.history_data)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     schedule_path = args.output_dir / f"shift_schedule_{args.year}_{args.month:02d}.csv"

@@ -63,6 +63,15 @@
               <label>Month<input id="month" type="month" required /></label>
               <label>Employee dataset<input value="20 employees from CSV" disabled /></label>
             </div>
+            <div class="leave-section">
+              <div class="leave-section-header">
+                <p class="eyebrow">EMPLOYEE LEAVES (OPTIONAL)</p>
+                <button type="button" class="secondary-button compact" id="add-leave-btn" style="padding: 6px 12px; font-size: 11px;">+ Add Leave</button>
+              </div>
+              <div id="leaves-container">
+                <!-- leave rows will be added dynamically -->
+              </div>
+            </div>
             <button class="primary-button" type="submit">
               <span>Generate schedule</span><b>&rarr;</b>
             </button>
@@ -98,7 +107,7 @@
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>ID</th><th>Employee</th><th>Level</th><th>Gender</th><th>Fixed shift</th><th>Workdays</th><th>Days off</th></tr>
+                  <tr><th>ID</th><th>Employee</th><th>Level</th><th>Gender</th><th>Fixed shift</th><th>Workdays</th><th>Days off</th><th>Leave</th></tr>
                 </thead>
                 <tbody id="team-table"></tbody>
               </table>
